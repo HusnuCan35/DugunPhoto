@@ -30,8 +30,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white dark:bg-gray-900 transition-colors duration-300`}
       >
         <ThemeProvider>
-          <BucketCreator />
-          {children}
+        <BucketCreator />
+        {children}
         </ThemeProvider>
       </body>
     </html>
