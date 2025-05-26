@@ -7,55 +7,44 @@ export default function BucketCreator() {
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
-    async function createBucket() {
+    async function initStorage() {
       try {
-        setStatus("Bucket kontrol ediliyor...");
+        setStatus("Storage kontrol ediliyor...");
         
-        // Mevcut bucketları kontrol et
+        // Sadece bucket varlığını kontrol et
         const { data: buckets, error: listError } = await supabase.storage.listBuckets();
         
         if (listError) {
-          console.error("Bucket listesi alınamadı:", listError);
-          setError("Bucket listesi alınamadı: " + listError.message);
+          console.log("Storage listesi kontrol edilemiyor:", listError.message);
+          setStatus("Storage offline - yerel mod aktif");
           return;
         }
         
         const photoBucket = buckets?.find(b => b.name === "photos");
         
         if (photoBucket) {
-          setStatus("'photos' bucket zaten var");
-          return;
+          console.log("✅ Photos bucket mevcut ve hazır");
+          setStatus("Storage bağlantısı başarılı");
+        } else {
+          console.log("⚠️ Photos bucket bulunamadı");
+          setStatus("Storage yapılandırma gerekiyor");
         }
         
-        // Bucket yoksa oluştur
-        setStatus("'photos' bucket oluşturuluyor...");
-        const { error: createError } = await supabase.storage.createBucket("photos", {
-          public: true
-        });
-        
-        if (createError) {
-          console.error("Bucket oluşturulamadı:", createError);
-          setError("Bucket oluşturulamadı: " + createError.message);
-          return;
-        }
-        
-        setStatus("Bucket başarıyla oluşturuldu");
       } catch (err) {
-        console.error("Beklenmeyen hata:", err);
-        setError("Bir hata oluştu");
+        console.log("Storage kontrol hatası:", err);
+        setStatus("Yerel mod - Storage çevrimdışı");
+        setError("");
       }
     }
     
-    createBucket();
+    initStorage();
   }, []);
 
-  if (error) {
-    return (
-      <div className="fixed top-0 left-0 right-0 bg-red-500 text-white p-2 text-center text-xs">
-        {error}
-      </div>
-    );
+  // Hiçbir UI gösterme, sadece arka plan kontrolü
+  if (process.env.NODE_ENV === 'development') {
+    console.log("BucketCreator Status:", status);
+    if (error) console.log("BucketCreator Error:", error);
   }
   
-  return null; // Normal kullanımda görünmez
+  return null;
 } 

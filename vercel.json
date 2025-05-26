@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "dugun-photo-app",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/$1"
+    }
+  ]
+} 

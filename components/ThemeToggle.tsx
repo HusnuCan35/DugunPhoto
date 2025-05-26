@@ -1,48 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-
-type Theme = 'light' | 'dark' | 'system';
+import { useTheme } from '../contexts/ThemeContext';
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('system');
-  const [actualTheme, setActualTheme] = useState<'light' | 'dark'>('light');
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as Theme;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-  }, []);
-
-  useEffect(() => {
-    const updateActualTheme = () => {
-      if (theme === 'system') {
-        const systemPreference = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        setActualTheme(systemPreference);
-      } else {
-        setActualTheme(theme);
-      }
-    };
-
-    updateActualTheme();
-
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', updateActualTheme);
-      return () => mediaQuery.removeEventListener('change', updateActualTheme);
-    }
-  }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem('theme', theme);
-    
-    if (actualTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme, actualTheme]);
+  const { theme, setTheme, actualTheme } = useTheme();
 
   const toggleTheme = () => {
     if (theme === 'light') {

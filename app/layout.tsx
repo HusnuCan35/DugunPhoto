@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Düğün Fotoğrafları',
-  description: 'Düğün anılarınızı paylaşabileceğiniz ve görebileceğiniz platform',
+  description: 'Düğün anılarınızı paylaşabileceğiniz ve görebileceğiniz modern platform',
 };
 
 export default function RootLayout({
@@ -27,13 +27,13 @@ export default function RootLayout({
   return (
     <html lang="tr" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white dark:bg-gray-900 transition-colors duration-300`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased transition-colors duration-300`}
       >
         <ThemeProvider>
-        <BucketCreator />
+          <BucketCreator />
         {children}
         </ThemeProvider>
       </body>
     </html>
   );
-} 
+}
