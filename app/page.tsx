@@ -14,6 +14,24 @@ function getHeicPlaceholder(): string {
   return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='100' y='90' text-anchor='middle' font-family='Arial' font-size='14' fill='%23374151'%3EHEIC Dosyası%3C/text%3E%3Ctext x='100' y='110' text-anchor='middle' font-family='Arial' font-size='12' fill='%236b7280'%3EÖnizleme mevcut değil%3C/text%3E%3Ctext x='100' y='130' text-anchor='middle' font-family='Arial' font-size='10' fill='%236b7280'%3ETıklayarak büyütebilirsiniz%3C/text%3E%3C/svg%3E";
 }
 
+// Dosya adını güvenli hale getiren fonksiyon
+function sanitizeFileName(fileName: string): string {
+  return fileName
+    .replace(/[ğ]/g, 'g')
+    .replace(/[Ğ]/g, 'G')
+    .replace(/[ü]/g, 'u')
+    .replace(/[Ü]/g, 'U')
+    .replace(/[ş]/g, 's')
+    .replace(/[Ş]/g, 'S')
+    .replace(/[ı]/g, 'i')
+    .replace(/[İ]/g, 'I')
+    .replace(/[ö]/g, 'o')
+    .replace(/[Ö]/g, 'O')
+    .replace(/[ç]/g, 'c')
+    .replace(/[Ç]/g, 'C')
+    .replace(/[^a-zA-Z0-9._-]/g, '_'); // Özel karakterleri _ ile değiştir
+}
+
 export default function HomePage() {
   const [name, setName] = useState("");
   const [photos, setPhotos] = useState<any[]>([]);
@@ -125,7 +143,7 @@ export default function HomePage() {
       // Önce localStorage'a ekle (immediate feedback)
       const localPhoto = {
         id: Date.now() + Math.random(), // Unique ID
-        name: file.name,
+        name: sanitizeFileName(file.name),
         url: URL.createObjectURL(file),
         user: name,
         uploadedAt: new Date().toLocaleString('tr-TR'),
@@ -152,7 +170,7 @@ export default function HomePage() {
       const localPhoto = localPhotos[i];
       
       try {
-        const fileName = `${Date.now()}_${name.replace(/\s+/g, '_')}_${file.name}`;
+        const fileName = `${Date.now()}_${name.replace(/\s+/g, '_')}_${sanitizeFileName(file.name)}`;
         const { data, error } = await supabase.storage
           .from('photos')
           .upload(fileName, file);

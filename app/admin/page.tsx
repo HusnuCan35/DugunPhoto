@@ -26,6 +26,24 @@ function getHeicPlaceholder(): string {
   return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='100' y='90' text-anchor='middle' font-family='Arial' font-size='14' fill='%23374151'%3EHEIC Dosyası%3C/text%3E%3Ctext x='100' y='110' text-anchor='middle' font-family='Arial' font-size='12' fill='%236b7280'%3EÖnizleme mevcut değil%3C/text%3E%3Ctext x='100' y='130' text-anchor='middle' font-family='Arial' font-size='10' fill='%236b7280'%3EDoğru fotoğraf indirilecektir%3C/text%3E%3C/svg%3E";
 }
 
+// Dosya adını güvenli hale getiren fonksiyon
+function sanitizeFileName(fileName: string): string {
+  return fileName
+    .replace(/[ğ]/g, 'g')
+    .replace(/[Ğ]/g, 'G')
+    .replace(/[ü]/g, 'u')
+    .replace(/[Ü]/g, 'U')
+    .replace(/[ş]/g, 's')
+    .replace(/[Ş]/g, 'S')
+    .replace(/[ı]/g, 'i')
+    .replace(/[İ]/g, 'I')
+    .replace(/[ö]/g, 'o')
+    .replace(/[Ö]/g, 'O')
+    .replace(/[ç]/g, 'c')
+    .replace(/[Ç]/g, 'C')
+    .replace(/[^a-zA-Z0-9._-]/g, '_'); // Özel karakterleri _ ile değiştir
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -331,7 +349,7 @@ export default function AdminPage() {
       // Her dosya için upload işlemi
       for (const file of validFiles) {
         try {
-          const fileName = `${Date.now()}_admin_${file.name}`;
+          const fileName = `${Date.now()}_admin_${sanitizeFileName(file.name)}`;
           const { data, error } = await supabase.storage
             .from('photos')
             .upload(fileName, file);
@@ -579,17 +597,18 @@ export default function AdminPage() {
                   accept="image/*"
                   multiple
                   onChange={handleFileUpload}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                   id="adminFileInput"
                   disabled={isUploading}
                 />
-                <label 
-                  htmlFor="adminFileInput" 
-                  className={`btn-primary text-sm ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                <button 
+                  type="button"
+                  className={`btn-primary text-sm flex items-center gap-2 ${isUploading ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
+                  disabled={isUploading}
                 >
                   {isUploading ? (
                     <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
@@ -597,13 +616,13 @@ export default function AdminPage() {
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                       </svg>
                       Fotoğraf Yükle
                     </>
                   )}
-                </label>
+                </button>
               </div>
 
               <button
