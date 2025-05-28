@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../src/lib/supabaseClient";
 import { localStorageUtils, LocalPhoto } from "../../src/lib/localStorageUtils";
+import { validateAdminPassword } from "../../src/lib/adminAuth";
+import { getStorageStats, performSimpleCleanup, formatBytes, StorageStats, BackupResult } from "../../src/lib/storageManager";
 import Link from "next/link";
 import ThemeToggle from "../../components/ThemeToggle";
 
@@ -75,6 +77,9 @@ export default function AdminPage() {
   });
   const [isUploading, setIsUploading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string>("");
+  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [backupResult, setBackupResult] = useState<BackupResult | null>(null);
+  const [isBackingUp, setIsBackingUp] = useState(false);
 
   // LocalStorage'den giriş durumunu kontrol et
   useEffect(() => {
@@ -156,13 +161,23 @@ export default function AdminPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
     
-    if (password === ADMIN_PASSWORD) {
-      setIsLoggedIn(true);
-      localStorage.setItem("dugunPhotoAdminAuth", "true");
-      fetchPhotos();
-    } else {
-      setError("Şifre yanlış");
+    try {
+      const isValid = await validateAdminPassword(password);
+      
+      if (isValid) {
+        setIsLoggedIn(true);
+        localStorage.setItem("dugunPhotoAdminAuth", "true");
+        fetchPhotos();
+      } else {
+        setError("Şifre yanlış");
+      }
+    } catch (err) {
+      console.error("Giriş hatası:", err);
+      setError("Giriş sırasında bir hata oluştu");
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -221,6 +236,14 @@ export default function AdminPage() {
       setPhotos([]);
     } finally {
       setIsLoading(false);
+    }
+
+    // Depolama istatistiklerini al
+    try {
+      const storage = await getStorageStats();
+      setStorageStats(storage);
+    } catch (err) {
+      console.warn("Depolama istatistikleri alınamadı:", err);
     }
   }
 
@@ -305,6 +328,33 @@ export default function AdminPage() {
     } catch (err) {
       console.error("Silme hatası:", err);
       setError("Silme sırasında bir hata oluştu.");
+    }
+  }
+
+  async function handleBackup() {
+    if (!confirm("En eski fotoğrafları silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) return;
+    
+    setIsBackingUp(true);
+    setBackupResult(null);
+    setError("");
+    
+    try {
+      const result = await performSimpleCleanup(20); // 20 dosya sil
+      setBackupResult(result);
+      
+      if (result.success) {
+        setSuccessMessage(result.message);
+        setTimeout(() => setSuccessMessage(""), 5000);
+        // Fotoğraf listesini ve depolama istatistiklerini yenile
+        fetchPhotos();
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      console.error("Temizlik hatası:", err);
+      setError("Temizlik sırasında bir hata oluştu");
+    } finally {
+      setIsBackingUp(false);
     }
   }
 
@@ -457,8 +507,19 @@ export default function AdminPage() {
           <button 
             type="submit" 
               className="btn-primary w-full py-3 text-lg"
+              disabled={isLoading}
           >
-            Giriş Yap
+            {isLoading ? (
+              <div className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Kontrol Ediliyor...
+              </div>
+            ) : (
+              'Giriş Yap'
+            )}
           </button>
             
             {error && (
@@ -515,7 +576,7 @@ export default function AdminPage() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* İstatistikler */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="card p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -556,6 +617,50 @@ export default function AdminPage() {
                 </svg>
               </div>
             </div>
+          </div>
+
+          {/* Depolama İstatistikleri */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Depolama Kullanımı</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">
+                  {storageStats ? `%${storageStats.percentUsed}` : '---'}
+                </p>
+                {storageStats && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {formatBytes(storageStats.totalSize)} / 4.5 GB
+                  </p>
+                )}
+              </div>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                storageStats?.isNearLimit 
+                  ? 'bg-red-100 dark:bg-red-900/20' 
+                  : 'bg-orange-100 dark:bg-orange-900/20'
+              }`}>
+                <svg className={`w-6 h-6 ${
+                  storageStats?.isNearLimit 
+                    ? 'text-red-600 dark:text-red-400' 
+                    : 'text-orange-600 dark:text-orange-400'
+                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2h4a1 1 0 110 2h-1v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6H3a1 1 0 110-2h4zM9 6v12h6V6H9zm2 2h2v8h-2V8z" />
+                </svg>
+              </div>
+            </div>
+            {storageStats && storageStats.isNearLimit && (
+              <div className="mt-2">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div 
+                    className={`h-2 rounded-full ${
+                      storageStats.needsCleanup 
+                        ? 'bg-red-600' 
+                        : 'bg-orange-500'
+                    }`}
+                    style={{ width: `${Math.min(storageStats.percentUsed, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -672,28 +777,54 @@ export default function AdminPage() {
               >
                 {selectedPhotos.size === filteredPhotos.length ? 'Hiçbirini Seçme' : 'Tümünü Seç'}
               </button>
-              
-            <button
+
+              {/* Alan Temizleme */}
+              {storageStats && storageStats.isNearLimit && (
+                <button
+                  onClick={handleBackup}
+                  disabled={isBackingUp}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBackingUp ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Temizleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Eski Fotoğrafları Sil
+                    </>
+                  )}
+                </button>
+              )}
+
+              <button
                 onClick={handleDownloadSelected}
                 disabled={downloadAll || filteredPhotos.length === 0}
                 className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {downloadAll ? (
-                <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  İndiriliyor...
-                </>
-              ) : (
-                <>
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              >
+                {downloadAll ? (
+                  <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    {selectedPhotos.size > 0 ? `Seçilenleri İndir (${selectedPhotos.size})` : 'Tümünü İndir'}
+                    İndiriliyor...
                   </>
-                )}
+                ) : (
+                  <>
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      {selectedPhotos.size > 0 ? `Seçilenleri İndir (${selectedPhotos.size})` : 'Tümünü İndir'}
+                    </>
+                  )}
               </button>
 
               {selectedPhotos.size > 0 && (

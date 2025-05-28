@@ -10,12 +10,14 @@ Modern, responsive ve kullanıcı dostu düğün fotoğraf paylaşım platformu.
 - 🌙 **Karanlık/Açık Tema**: Otomatik tema değiştirme
 - 📱 **Responsive Tasarım**: Tüm cihazlarda mükemmel görünüm
 - ☁️ **Supabase Entegrasyonu**: Güvenli bulut depolama
-- 🔒 **Güvenli Admin Erişimi**: Şifre korumalı admin paneli
+- 🔒 **Güvenli Admin Erişimi**: Bcrypt ile şifrelenmiş admin paneli
 - 📊 **Speed Insights**: Vercel Speed Insights ile performans izleme
 - 📈 **Analytics**: Vercel Analytics ile kullanıcı analizi
 - 🔄 **Çoklu Seçim**: Tek seferde birden fazla fotoğraf yükleme
 - 👥 **Benzersiz Kullanıcı Adları**: Her kullanıcı adı benzersiz olmalıdır
 - 🔍 **Kullanıcı Filtreleme**: Admin panelinde kullanıcıya göre filtreleme
+- 💾 **Depolama Yönetimi**: Otomatik alan izleme ve temizlik sistemi
+- 🗑️ **Akıllı Temizlik**: Depolama %90 dolduğunda eski fotoğrafları otomatik sil
 
 ## 🚀 Canlı Demo
 
@@ -140,11 +142,13 @@ CREATE POLICY "Admin can delete photos" ON storage.objects
 
 ### Admin İçin
 1. Sağ üst köşedeki "Admin Panel" linkine tıklayın
-2. Şifre: `dugun2024`
-3. **Kullanıcı Filtreleme**: Dropdown menüden belirli kullanıcının fotoğraflarını filtreleyin
-4. **Fotoğraf Yükleme**: "Fotoğraf Yükle" butonu ile çoklu dosya yükleyebilirsiniz
-5. Tüm fotoğrafları görüntüleyin ve yönetin
-6. İstenmeyen fotoğrafları silin
+2. Şifre: `HusnuIrem290625` (Supabase'de güvenli şekilde saklanır)
+3. **Depolama İzleme**: Gerçek zamanlı depolama kullanımını görün (4.5GB limit)
+4. **Kullanıcı Filtreleme**: Dropdown menüden belirli kullanıcının fotoğraflarını filtreleyin
+5. **Fotoğraf Yükleme**: "Fotoğraf Yükle" butonu ile çoklu dosya yükleyebilirsiniz
+6. **Akıllı Temizlik**: Depolama %85+ dolduğunda "Eski Fotoğrafları Sil" butonu görünür
+7. Tüm fotoğrafları görüntüleyin ve yönetin
+8. İstenmeyen fotoğrafları silin
 
 ## 🎨 Tema Özellikleri
 
@@ -179,8 +183,10 @@ dugun-photo-web/
 
 - **RLS (Row Level Security)**: Supabase'de aktif
 - **CORS**: Güvenli cross-origin istekleri
-- **Admin Koruması**: Şifre korumalı admin paneli
+- **Admin Koruması**: Bcrypt ile hash'lenmiş şifre korumalı admin paneli
+- **Supabase Şifre Yönetimi**: Admin şifresi Supabase'de güvenli şekilde saklanır
 - **Input Validation**: Dosya türü ve boyut kontrolü
+- **Fallback Güvenlik**: Supabase bağlantı hatalarında varsayılan şifre koruması
 
 ## 🚀 Performance
 
