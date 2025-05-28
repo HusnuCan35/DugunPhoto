@@ -13,6 +13,7 @@ Modern, responsive ve kullanıcı dostu düğün fotoğraf paylaşım platformu.
 - 🔒 **Güvenli Admin Erişimi**: Şifre korumalı admin paneli
 - 📊 **Speed Insights**: Vercel Speed Insights ile performans izleme
 - 📈 **Analytics**: Vercel Analytics ile kullanıcı analizi
+- 🔄 **Çoklu Seçim**: Tek seferde birden fazla fotoğraf yükleme
 
 ## 🚀 Canlı Demo
 
@@ -130,14 +131,16 @@ CREATE POLICY "Admin can delete photos" ON storage.objects
 ### Misafirler İçin
 1. Ana sayfada isminizi girin
 2. "Devam Et" butonuna basın
-3. Fotoğraflarınızı seçin ve yükleyin
-4. Diğer misafirlerin fotoğraflarını görüntüleyin
+3. **Çoklu Fotoğraf Seçimi**: Ctrl/Cmd tuşuna basarak birden fazla fotoğraf seçin
+4. Fotoğraflarınızı yükleyin (tek seferde birden fazla dosya desteklenir)
+5. Diğer misafirlerin fotoğraflarını görüntüleyin
 
 ### Admin İçin
 1. Sağ üst köşedeki "Admin Panel" linkine tıklayın
 2. Şifre: `dugun2024`
-3. Tüm fotoğrafları görüntüleyin ve yönetin
-4. İstenmeyen fotoğrafları silin
+3. **Fotoğraf Yükleme**: "Fotoğraf Yükle" butonu ile çoklu dosya yükleyebilirsiniz
+4. Tüm fotoğrafları görüntüleyin ve yönetin
+5. İstenmeyen fotoğrafları silin
 
 ## 🎨 Tema Özellikleri
 
