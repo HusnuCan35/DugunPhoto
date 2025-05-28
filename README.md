@@ -11,6 +11,8 @@ Modern, responsive ve kullanıcı dostu düğün fotoğraf paylaşım platformu.
 - 📱 **Responsive Tasarım**: Tüm cihazlarda mükemmel görünüm
 - ☁️ **Supabase Entegrasyonu**: Güvenli bulut depolama
 - 🔒 **Güvenli Admin Erişimi**: Şifre korumalı admin paneli
+- 📊 **Speed Insights**: Vercel Speed Insights ile performans izleme
+- 📈 **Analytics**: Vercel Analytics ile kullanıcı analizi
 
 ## 🚀 Canlı Demo
 
@@ -23,6 +25,7 @@ Modern, responsive ve kullanıcı dostu düğün fotoğraf paylaşım platformu.
 - **Styling**: Tailwind CSS
 - **Backend**: Supabase (Database + Storage)
 - **Deployment**: Vercel, Supabase Edge Functions
+- **Analytics**: Vercel Speed Insights & Analytics
 - **Icons**: Heroicons
 
 ## 📦 Kurulum
@@ -58,9 +61,11 @@ Uygulama [http://localhost:3000](http://localhost:3000) adresinde çalışacak.
 1. GitHub'a push yapın
 2. [Vercel Dashboard](https://vercel.com)'a gidin
 3. "New Project" → GitHub repo seçin
-4. **Root Directory**: `dugun-photo-web` seçin
+4. **Root Directory**: Ana klasör (dugun-photo-web değil) seçin
 5. Environment variables ekleyin
 6. Deploy butonuna basın
+
+**📊 Speed Insights**: Deploy sonrası Vercel Dashboard'dan Speed Insights ve Analytics otomatik olarak aktif olacak.
 
 ### Manuel Deploy
 ```bash
@@ -176,6 +181,30 @@ dugun-photo-web/
 - **Image Optimization**: Otomatik resim optimizasyonu
 - **Static Generation**: Hızlı sayfa yükleme
 - **CDN**: Vercel Edge Network
+- **Speed Insights**: Gerçek zamanlı performans metrikleri
+- **Analytics**: Kullanıcı davranışları ve sayfa görüntülemeleri
+
+## 📊 Speed Insights & Analytics
+
+Bu proje Vercel Speed Insights ve Analytics ile donatılmıştır:
+
+### Speed Insights
+- **Core Web Vitals**: LCP, FID, CLS metrikleri
+- **Gerçek Zamanlı İzleme**: Canlı kullanıcı deneyimi verileri
+- **Performance Skorları**: Her sayfa için detaylı performans analizi
+- **Otomatik Optimizasyon Önerileri**: Vercel Dashboard'da görüntülenir
+
+### Analytics
+- **Sayfa Görüntülemeleri**: Hangi sayfaların daha çok ziyaret edildiği
+- **Kullanıcı Davranışları**: Trafik kaynakları ve cihaz bilgileri
+- **Gerçek Zamanlı Veriler**: Anlık kullanıcı aktivitesi
+- **GDPR Uyumlu**: Kullanıcı gizliliğini korur
+
+### Vercel Dashboard'da Görüntüleme
+1. [Vercel Dashboard](https://vercel.com/dashboard)'a gidin
+2. Projenizi seçin
+3. **Analytics** sekmesini açın
+4. **Speed Insights** için detaylı metrikleri inceleyin
 
 ## 🤝 Katkıda Bulunma
 
