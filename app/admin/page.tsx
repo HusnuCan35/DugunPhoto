@@ -44,6 +44,16 @@ function sanitizeFileName(fileName: string): string {
     .replace(/[^a-zA-Z0-9._-]/g, '_'); // Özel karakterleri _ ile değiştir
 }
 
+// Dosya adından kullanıcı adını çıkaran fonksiyon
+function getUserFromFileName(fileName: string): string {
+  const parts = fileName?.split('_') || [];
+  if (parts.length >= 2) {
+    // İkinci kısım kullanıcı adı (timestamp_username_filename formatında)
+    return parts[1].replace(/_/g, ' ');
+  }
+  return 'Bilinmeyen';
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -64,6 +74,7 @@ export default function AdminPage() {
     uniqueUsers: 0
   });
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<string>("");
 
   // LocalStorage'den giriş durumunu kontrol et
   useEffect(() => {
@@ -76,27 +87,28 @@ export default function AdminPage() {
 
   // Arama ve filtreleme
   useEffect(() => {
-    if (!searchTerm) {
-      setFilteredPhotos(photos);
-    } else {
-      const filtered = photos.filter(photo => {
-        const parts = photo.name?.split('_') || [];
-        const userId = parts[0] || '';
-        const userName = parts.length > 1 ? parts[1].replace(/_/g, ' ') : '';
-        return userId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    let filtered = photos;
+    
+    // Kullanıcı filtresi
+    if (selectedUser) {
+      filtered = filtered.filter(photo => getUserFromFileName(photo.name) === selectedUser);
+    }
+    
+    // Arama filtresi
+    if (searchTerm) {
+      filtered = filtered.filter(photo => {
+        const userName = getUserFromFileName(photo.name);
+        return userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                photo.name.toLowerCase().includes(searchTerm.toLowerCase());
       });
-      setFilteredPhotos(filtered);
     }
-  }, [searchTerm, photos]);
+    
+    setFilteredPhotos(filtered);
+  }, [searchTerm, selectedUser, photos]);
 
   // İstatistikleri güncelle
   useEffect(() => {
-    const uniqueUsers = new Set(photos.map(photo => {
-      const parts = photo.name?.split('_') || [];
-      return parts[0] || 'unknown';
-    })).size;
+    const uniqueUsers = new Set(photos.map(photo => getUserFromFileName(photo.name))).size;
 
     setStats({
       totalPhotos: photos.length,
@@ -387,6 +399,14 @@ export default function AdminPage() {
     }
   }
 
+  // Unique kullanıcıları al
+  const getUniqueUsers = () => {
+    const users = Array.from(new Set(photos.map(photo => getUserFromFileName(photo.name))))
+      .filter(user => user !== 'Bilinmeyen')
+      .sort();
+    return users;
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-indigo-900/20 flex items-center justify-center p-4">
@@ -559,6 +579,27 @@ export default function AdminPage() {
                 />
               </div>
 
+              {/* Kullanıcı Filtresi */}
+              <div className="relative max-w-xs">
+                <select
+                  value={selectedUser}
+                  onChange={(e) => setSelectedUser(e.target.value)}
+                  className="input w-full appearance-none bg-white dark:bg-gray-800 pr-10"
+                >
+                  <option value="">Tüm Kullanıcılar</option>
+                  {getUniqueUsers().map((user) => (
+                    <option key={user} value={user}>
+                      {user} ({photos.filter(p => getUserFromFileName(p.name) === user).length})
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+
               {/* Görünüm Modu */}
               <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1">
                 <button
@@ -689,9 +730,11 @@ export default function AdminPage() {
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
               Fotoğraflar ({filteredPhotos.length})
             </h2>
-            {searchTerm && (
+            {(searchTerm || selectedUser) && (
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                "{searchTerm}" için {filteredPhotos.length} sonuç
+                {searchTerm && selectedUser && `"${searchTerm}" araması ve "${selectedUser}" kullanıcısı için ${filteredPhotos.length} sonuç`}
+                {searchTerm && !selectedUser && `"${searchTerm}" için ${filteredPhotos.length} sonuç`}
+                {!searchTerm && selectedUser && `"${selectedUser}" kullanıcısı için ${filteredPhotos.length} sonuç`}
               </span>
             )}
           </div>
@@ -727,12 +770,7 @@ export default function AdminPage() {
                   (supabase.storage.from("photos").getPublicUrl(photo.name).data?.publicUrl || 
                   '/fallback/photo-placeholder.jpg');
                 
-                const parts = photo.name?.split('_') || [];
-                const userId = parts[0] || 'Bilinmeyen';
-                let userName = 'Bilinmeyen';
-                if (parts.length > 1) {
-                  userName = parts[1].replace(/_/g, ' ');
-                }
+                const userName = getUserFromFileName(photo.name);
                 
                 const isSelected = selectedPhotos.has(photo.name);
                 
@@ -761,7 +799,7 @@ export default function AdminPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {userName !== 'Bilinmeyen' ? userName : userId}
+                          {userName !== 'Bilinmeyen' ? userName : 'Bilinmeyen'}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                           {photo.name}
@@ -853,7 +891,7 @@ export default function AdminPage() {
                     
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
                       <p className="text-white text-xs font-medium truncate">
-                      {userName !== 'Bilinmeyen' ? userName : userId.substring(0, 8) + '...'}
+                      {userName !== 'Bilinmeyen' ? userName : 'Bilinmeyen'}
                       </p>
                     </div>
                   </div>
@@ -909,13 +947,7 @@ export default function AdminPage() {
                     {(() => {
                       const currentPhoto = filteredPhotos[selectedPhotoIndex];
                       if (!currentPhoto) return 'Bilinmeyen';
-                      const parts = currentPhoto.name?.split('_') || [];
-                      const userId = parts[0] || 'Bilinmeyen';
-                      let userName = 'Bilinmeyen';
-                      if (parts.length > 1) {
-                        userName = parts[1].replace(/_/g, ' ');
-                      }
-                      return userName !== 'Bilinmeyen' ? userName : userId;
+                      return getUserFromFileName(currentPhoto.name);
                     })()}
                   </span>
                 </div>
