@@ -38,6 +38,8 @@ export default function HomePage() {
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  const [existingUsers, setExistingUsers] = useState<Set<string>>(new Set());
 
   // LocalStorage'dan ismi ve fotoğrafları yükle
   useEffect(() => {
@@ -56,6 +58,9 @@ export default function HomePage() {
         console.warn("Stored photos parse hatası:", err);
       }
     }
+
+    // Mevcut kullanıcıları yükle
+    fetchExistingUsers();
   }, []);
 
   // Notification sistemini otomatik temizle
@@ -209,10 +214,45 @@ export default function HomePage() {
     e.target.value = '';
   };
 
-  const handleNameSubmit = (newName: string) => {
-    setName(newName);
-    localStorage.setItem("dugunPhotoUserName", newName);
-    showNotification(`Hoş geldiniz, ${newName}! 👋`, 'success');
+  const handleNameSubmit = async (newName: string) => {
+    const trimmedName = newName.trim();
+    
+    if (!trimmedName) {
+      showNotification("Lütfen geçerli bir isim girin", 'error');
+      return;
+    }
+
+    setIsCheckingUsername(true);
+    
+    try {
+      // En güncel kullanıcı listesini al
+      await fetchExistingUsers();
+      
+      // Benzersizlik kontrolü
+      if (!checkUsernameUniqueness(trimmedName)) {
+        const suggestion = suggestAlternativeUsername(trimmedName);
+        showNotification(
+          `"${trimmedName}" adında bir kullanıcı zaten var. Alternatif: "${suggestion}"`, 
+          'error'
+        );
+        setIsCheckingUsername(false);
+        return;
+      }
+
+      // Benzersizse kaydet
+      setName(trimmedName);
+      localStorage.setItem("dugunPhotoUserName", trimmedName);
+      showNotification(`Hoş geldiniz, ${trimmedName}! 👋`, 'success');
+      
+      // Kullanıcı listesini güncelle
+      setExistingUsers(prev => new Set([...prev, trimmedName.toLowerCase()]));
+      
+    } catch (err) {
+      console.error("Kullanıcı adı kontrolü hatası:", err);
+      showNotification("Giriş sırasında bir hata oluştu, tekrar deneyin", 'error');
+    } finally {
+      setIsCheckingUsername(false);
+    }
   };
 
   const handleDeletePhoto = async (photoToDelete: any) => {
@@ -251,6 +291,58 @@ export default function HomePage() {
       console.error("Silme hatası:", err);
       showNotification("Silme işlemi başarısız", 'error');
   }
+  };
+
+  // Dosya adından kullanıcı adını çıkaran fonksiyon
+  function getUserFromFileName(fileName: string): string {
+    const parts = fileName?.split('_') || [];
+    if (parts.length >= 2) {
+      // İkinci kısım kullanıcı adı (timestamp_username_filename formatında)
+      return parts[1].replace(/_/g, ' ');
+    }
+    return '';
+  }
+
+  // Mevcut kullanıcıları Supabase'den al
+  const fetchExistingUsers = async () => {
+    try {
+      const { data, error } = await supabase.storage.from("photos").list("", {
+        sortBy: { column: 'name', order: 'desc' }
+      });
+      
+      if (!error && data) {
+        const users = new Set<string>();
+        data.forEach(photo => {
+          if (photo.name !== ".emptyFolderPlaceholder") {
+            const userName = getUserFromFileName(photo.name);
+            if (userName) {
+              users.add(userName.toLowerCase()); // Büyük/küçük harf duyarsız
+            }
+          }
+        });
+        setExistingUsers(users);
+      }
+    } catch (err) {
+      console.warn("Kullanıcı listesi alınamadı:", err);
+    }
+  };
+
+  // Kullanıcı adı benzersizliğini kontrol et
+  const checkUsernameUniqueness = (username: string): boolean => {
+    return !existingUsers.has(username.toLowerCase().trim());
+  };
+
+  // Alternatif kullanıcı adı öner
+  const suggestAlternativeUsername = (username: string): string => {
+    let counter = 1;
+    let suggestion = `${username} ${counter}`;
+    
+    while (existingUsers.has(suggestion.toLowerCase())) {
+      counter++;
+      suggestion = `${username} ${counter}`;
+    }
+    
+    return suggestion;
   };
 
   return (
@@ -316,7 +408,17 @@ export default function HomePage() {
                 </svg>
               </div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-2">Hoş Geldiniz!</h2>
-              <p className="text-gray-600">Fotoğraflarınızın altında görünecek isminizi girin</p>
+              <p className="text-gray-600 mb-3">Fotoğraflarınızın altında görünecek isminizi girin</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-blue-700 text-sm text-left">
+                    Her isim benzersiz olmalıdır. Aynı isimde başka bir kullanıcı varsa size alternatif önerilecektir.
+                  </p>
+                </div>
+              </div>
             </div>
             
             <div className="space-y-4">
@@ -324,8 +426,9 @@ export default function HomePage() {
                   type="text"
                   placeholder="Adınız ve Soyadınız"
                 className="w-full px-4 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all text-gray-900 placeholder-gray-500"
+                disabled={isCheckingUsername}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                  if (e.key === 'Enter' && e.currentTarget.value.trim() && !isCheckingUsername) {
                     handleNameSubmit(e.currentTarget.value.trim());
                   }
                 }}
@@ -333,19 +436,30 @@ export default function HomePage() {
               <button
                 onClick={() => {
                   const input = document.querySelector('input') as HTMLInputElement;
-                  if (input?.value.trim()) {
+                  if (input?.value.trim() && !isCheckingUsername) {
                     handleNameSubmit(input.value.trim());
-                  } else {
+                  } else if (!input?.value.trim()) {
                     showNotification("Lütfen isminizi girin", 'error');
                   }
                 }}
-                className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold py-4 rounded-2xl transition-all transform hover:scale-105 active:scale-95 shadow-lg"
+                disabled={isCheckingUsername}
+                className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold py-4 rounded-2xl transition-all transform hover:scale-105 active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
-                Devam Et
+                {isCheckingUsername ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Kontrol Ediliyor...
+                  </div>
+                ) : (
+                  'Devam Et'
+                )}
               </button>
           </div>
         </div>
-      )}
+        )}
 
         {/* Main Content */}
         {name && (
@@ -368,6 +482,7 @@ export default function HomePage() {
                     localStorage.removeItem("dugunPhotoUserPhotos");
                     setName("");
                     setPhotos([]);
+                    setExistingUsers(new Set());
                     showNotification("Çıkış yapıldı", 'success');
               }}
                   className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all text-sm font-medium"
