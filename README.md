@@ -5,6 +5,7 @@ Modern, responsive ve kullanıcı dostu düğün fotoğraf paylaşım platformu.
 ## ✨ Özellikler
 
 - 📸 **Fotoğraf Yükleme**: Çoklu fotoğraf yükleme desteği
+- 📊 **Progress Bar**: Çoklu fotoğraf yüklenirken gerçek zamanlı ilerleme takibi
 - 🖼️ **Galeri Görünümü**: Modern grid layout ile fotoğraf galerisi
 - 👨‍💼 **Admin Panel**: Fotoğraf yönetimi ve moderasyon
 - 🌙 **Karanlık/Açık Tema**: Otomatik tema değiştirme
@@ -137,8 +138,13 @@ CREATE POLICY "Admin can delete photos" ON storage.objects
 2. Eğer aynı isimde kullanıcı varsa alternatif isim önerilir
 3. "Devam Et" butonuna basın
 4. **Çoklu Fotoğraf Seçimi**: Ctrl/Cmd tuşuna basarak birden fazla fotoğraf seçin
-5. Fotoğraflarınızı yükleyin (tek seferde birden fazla dosya desteklenir)
-6. Diğer misafirlerin fotoğraflarını görüntüleyin
+5. **Progress Bar**: Fotoğraflar yüklenirken sayfanın üstünde progress bar belirir
+   - Kaç fotoğrafın yüklendiği gösterilir (örn: 3/5)
+   - Hangi dosyanın yüklendiği görülür
+   - Yüzdelik ilerleme (%0-%100) animasyonlu şekilde takip edilir
+   - Tamamlandığında yeşil ✓ animasyonu ile 2 saniye sonra kaybolur
+6. Fotoğraflarınızı yükleyin (tek seferde birden fazla dosya desteklenir)
+7. Diğer misafirlerin fotoğraflarını görüntüleyin
 
 ### Admin İçin
 1. Sağ üst köşedeki "Admin Panel" linkine tıklayın
