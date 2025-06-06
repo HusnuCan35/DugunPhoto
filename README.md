@@ -19,6 +19,8 @@ Modern, responsive ve kullanıcı dostu düğün fotoğraf paylaşım platformu.
 - 🔍 **Kullanıcı Filtreleme**: Admin panelinde kullanıcıya göre filtreleme
 - 💾 **Depolama Yönetimi**: Otomatik alan izleme ve temizlik sistemi
 - 🗑️ **Akıllı Temizlik**: Depolama %90 dolduğunda eski fotoğrafları otomatik sil
+- 📂 **Google Drive Yedekleme**: Otomatik Google Drive yedekleme sistemi
+- 🤖 **Otomatik Yedekleme**: Depolama %85 dolduğunda otomatik yedekleme ve temizlik
 
 ## 🚀 Canlı Demo
 
@@ -50,8 +52,44 @@ npm install
 ### 3. Environment Variables
 `.env.local` dosyası oluşturun:
 ```env
+# Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://sfqonnyzxfunhuzlrwml.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Google Drive API Configuration (Opsiyonel - Otomatik yedekleme için)
+GOOGLE_SERVICE_ACCOUNT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"
+GOOGLE_DRIVE_FOLDER_ID=your_folder_id
+
+# Admin Panel Password
+ADMIN_PASSWORD=your_admin_password
+```
+
+**Google Drive Kurulumu (Opsiyonel - Detaylı Rehber):**
+
+📋 **Adım Adım Kurulum:** [GOOGLE_DRIVE_SETUP.md](./GOOGLE_DRIVE_SETUP.md) dosyasını inceleyin
+
+**Hızlı Kurulum:**
+1. **Google Cloud Console Setup:**
+   - [Google Cloud Console](https://console.cloud.google.com/) → Yeni proje oluştur
+   - "APIs & Services" → "Library" → "Google Drive API" aktifleştir
+   - "Credentials" → "Service Account" oluştur → JSON key indir
+
+2. **Google Drive Setup:**
+   - [Google Drive](https://drive.google.com/)'da "DugunPhoto-Backups" klasörü oluştur
+   - Klasörü service account email ile paylaş (Editor yetkisi)
+   - URL'den folder ID'sini kopyala
+
+3. **Environment Variables:**
+   - JSON dosyasından `client_email` ve `private_key` değerlerini al
+   - **ÖNEMLİ:** Private key'deki `\n` karakterlerini `\\n` olarak değiştir
+   - `.env.local` dosyasına ekle
+
+**Örnek .env.local:**
+```env
+GOOGLE_SERVICE_ACCOUNT_EMAIL=dugun-photo-service@your-project-id.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\nMIIEvQI...\\n-----END PRIVATE KEY-----\\n"
+GOOGLE_DRIVE_FOLDER_ID=1A2B3C4D5E6F7G8H9I0J
 ```
 
 ### 4. Development Server
@@ -150,11 +188,15 @@ CREATE POLICY "Admin can delete photos" ON storage.objects
 1. Sağ üst köşedeki "Admin Panel" linkine tıklayın
 2. Şifre: `HusnuIrem290625` (Supabase'de güvenli şekilde saklanır)
 3. **Depolama İzleme**: Gerçek zamanlı depolama kullanımını görün (4.5GB limit)
-4. **Kullanıcı Filtreleme**: Dropdown menüden belirli kullanıcının fotoğraflarını filtreleyin
-5. **Fotoğraf Yükleme**: "Fotoğraf Yükle" butonu ile çoklu dosya yükleyebilirsiniz
-6. **Akıllı Temizlik**: Depolama %85+ dolduğunda "Eski Fotoğrafları Sil" butonu görünür
-7. Tüm fotoğrafları görüntüleyin ve yönetin
-8. İstenmeyen fotoğrafları silin
+4. **Google Drive İstatistikleri**: Yedeklenen dosya sayısı ve son yedekleme tarihi
+5. **Kullanıcı Filtreleme**: Dropdown menüden belirli kullanıcının fotoğraflarını filtreleyin
+6. **Fotoğraf Yükleme**: "Fotoğraf Yükle" butonu ile çoklu dosya yükleyebilirsiniz
+7. **Google Drive Yedekleme**: "Google Drive'a Yedekle" butonu ile tüm fotoğrafları yedekleyin
+8. **Akıllı Temizlik**: "Akıllı Temizlik (Yedekle + Sil)" butonu ile önce yedekleme sonra temizlik
+9. **Manuel Temizlik**: Depolama %85+ dolduğunda "Sadece Sil (Yedeklemeden)" butonu görünür
+10. **Otomatik Sistem**: Depolama %85 dolduğunda sistem otomatik olarak yedekleme ve temizlik yapar
+11. Tüm fotoğrafları görüntüleyin ve yönetin
+12. İstenmeyen fotoğrafları silin
 
 ## 🎨 Tema Özellikleri
 

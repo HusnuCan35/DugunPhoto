@@ -2,6 +2,9 @@
 import { useState, useEffect } from "react";
 import BucketCreator from "../components/BucketCreator";
 import { supabase } from "../src/lib/supabaseClient";
+import { localStorageUtils } from "../src/lib/localStorageUtils";
+import Link from "next/link";
+import ThemeToggle from "../components/ThemeToggle";
 
 // HEIC dosya kontrolü
 function isHeicFile(fileName: string): boolean {
@@ -236,6 +239,28 @@ export default function HomePage() {
       showNotification("Fotoğraf yüklendi! 📸", 'success');
     } else {
       showNotification(`${validFiles.length} fotoğraf yüklendi! 📸`, 'success');
+    }
+
+    // Otomatik yedekleme kontrolü (arka planda)
+    try {
+      const response = await fetch('/api/cleanup/smart', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ numberOfFiles: 20 })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          console.log("Otomatik yedekleme ve temizlik tamamlandı:", result.message);
+          showNotification("📂 Otomatik yedekleme tamamlandı!", 'success');
+        }
+      }
+    } catch (error) {
+      console.warn("Otomatik yedekleme kontrolü hatası:", error);
+      // Kullanıcıya hata mesajı gösterme, sessizce geç
     }
 
     // Progress bar'ı gizle

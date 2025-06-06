@@ -3,9 +3,9 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../../src/lib/supabaseClient";
 import { localStorageUtils, LocalPhoto } from "../../src/lib/localStorageUtils";
 import { validateAdminPassword } from "../../src/lib/adminAuth";
-import { getStorageStats, performSimpleCleanup, formatBytes, StorageStats, BackupResult } from "../../src/lib/storageManager";
 import Link from "next/link";
 import ThemeToggle from "../../components/ThemeToggle";
+import type { StorageStats, BackupResult, GoogleDriveStats } from "../../src/lib/storageManager";
 
 // Supabase FileObject tipi için genişletme ekleyelim
 type PhotoObject = {
@@ -80,13 +80,28 @@ export default function AdminPage() {
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const [backupResult, setBackupResult] = useState<BackupResult | null>(null);
   const [isBackingUp, setIsBackingUp] = useState(false);
+  const [googleDriveStats, setGoogleDriveStats] = useState<GoogleDriveStats | null>(null);
+  const [isGoogleDriveBackingUp, setIsGoogleDriveBackingUp] = useState(false);
+  const [isSmartCleaningUp, setIsSmartCleaningUp] = useState(false);
+  const [backupProgress, setBackupProgress] = useState<{
+    current: number;
+    total: number;
+    fileName: string;
+  } | null>(null);
+  // Otomatik yedekleme+temizlik
+  const [isAutoCleanup, setIsAutoCleanup] = useState(false);
+  // Seçili fotoğrafları Google Drive'a yedekle
+  const [isSelectedBackup, setIsSelectedBackup] = useState(false);
+  // Loading state'leri
+  const [isStorageStatsLoading, setIsStorageStatsLoading] = useState(true);
+  const [isGoogleDriveStatsLoading, setIsGoogleDriveStatsLoading] = useState(true);
 
   // LocalStorage'den giriş durumunu kontrol et
   useEffect(() => {
     const storedAuth = localStorage.getItem("dugunPhotoAdminAuth");
     if (storedAuth === "true") {
       setIsLoggedIn(true);
-      fetchPhotos();
+    fetchPhotos();
     }
   }, []);
 
@@ -222,7 +237,7 @@ export default function AdminPage() {
           
           // Nesneyi genişlet
           processedPhotos.push({
-            ...photo,
+          ...photo,
             publicUrl
           });
         }
@@ -238,13 +253,8 @@ export default function AdminPage() {
       setIsLoading(false);
     }
 
-    // Depolama istatistiklerini al
-    try {
-      const storage = await getStorageStats();
-      setStorageStats(storage);
-    } catch (err) {
-      console.warn("Depolama istatistikleri alınamadı:", err);
-    }
+    // Depolama ve Google Drive istatistiklerini al
+    loadStorageStats();
   }
 
   async function handleDownloadSelected() {
@@ -339,13 +349,17 @@ export default function AdminPage() {
     setError("");
     
     try {
-      const result = await performSimpleCleanup(20); // 20 dosya sil
+      // API'den fetch ile silme işlemi
+      const response = await fetch('/api/cleanup/smart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ numberOfFiles: 20 })
+      });
+      const result = await response.json();
       setBackupResult(result);
-      
       if (result.success) {
         setSuccessMessage(result.message);
         setTimeout(() => setSuccessMessage(""), 5000);
-        // Fotoğraf listesini ve depolama istatistiklerini yenile
         fetchPhotos();
       } else {
         setError(result.message);
@@ -423,7 +437,7 @@ export default function AdminPage() {
             console.log(`Başarıyla yüklendi (${file.name}):`, data);
             uploadedCount++;
           }
-        } catch (err) {
+    } catch (err) {
           console.warn(`Upload denemesi başarısız (${file.name}):`, err);
           failedCount++;
         }
@@ -457,8 +471,162 @@ export default function AdminPage() {
     return users;
   };
 
+  // Google Drive'a tüm fotoğrafları yedekle
+  async function handleGoogleDriveBackup() {
+    if (!confirm("Tüm fotoğrafları Google Drive'a yedeklemek istediğinize emin misiniz?")) return;
+    
+    setIsGoogleDriveBackingUp(true);
+    setBackupResult(null);
+    setError("");
+    setBackupProgress(null);
+    
+    try {
+      const response = await fetch('/api/backup/google-drive', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const result = await response.json();
+      setBackupResult(result);
+      
+      if (result.success) {
+        setSuccessMessage(`✅ ${result.message}`);
+        setTimeout(() => setSuccessMessage(""), 10000);
+        // Stats'ları yenile
+        loadStorageStats();
+    } else {
+        setError(`❌ ${result.message}`);
+      }
+    } catch (err) {
+      console.error("Google Drive backup hatası:", err);
+      setError("Google Drive backup sırasında bir hata oluştu");
+    } finally {
+      setIsGoogleDriveBackingUp(false);
+      setBackupProgress(null);
+    }
+  }
+
+  // Akıllı temizlik: Önce Google Drive'a yedekle, sonra sil
+  async function handleSmartCleanup(numberOfFiles: number = 20) {
+    if (!confirm(`Önce tüm fotoğraflar Google Drive'a yedeklenecek, sonra en eski ${numberOfFiles} fotoğraf silinecek. Devam etmek istediğinize emin misiniz?`)) return;
+    
+    setIsSmartCleaningUp(true);
+    setBackupResult(null);
+    setError("");
+    setBackupProgress(null);
+    
+    try {
+      const response = await fetch('/api/cleanup/smart', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ numberOfFiles })
+      });
+      
+      const result = await response.json();
+      setBackupResult(result);
+      
+      if (result.success) {
+        setSuccessMessage(`✅ ${result.message}`);
+        setTimeout(() => setSuccessMessage(""), 10000);
+        // Fotoğraf listesini ve depolama istatistiklerini yenile
+        fetchPhotos();
+        loadStorageStats();
+    } else {
+        setError(`❌ ${result.message}`);
+      }
+    } catch (err) {
+      console.error("Smart cleanup hatası:", err);
+      setError("Smart cleanup sırasında bir hata oluştu");
+    } finally {
+      setIsSmartCleaningUp(false);
+      setBackupProgress(null);
+    }
+  }
+
+  // Storage stats'ı yükle
+  async function loadStorageStats() {
+    setIsStorageStatsLoading(true);
+    setIsGoogleDriveStatsLoading(true);
+    try {
+      // Storage stats'ı API'den çek
+      const response = await fetch('/api/storage/stats');
+      if (response.ok) {
+        const stats = await response.json();
+        setStorageStats(stats);
+      }
+      setIsStorageStatsLoading(false);
+      // Google Drive stats'ı da yükle
+      const gdResponse = await fetch('/api/backup/google-drive');
+      if (gdResponse.ok) {
+        const gdStats = await gdResponse.json();
+        setGoogleDriveStats(gdStats);
+      }
+      setIsGoogleDriveStatsLoading(false);
+    } catch (err) {
+      setIsStorageStatsLoading(false);
+      setIsGoogleDriveStatsLoading(false);
+      console.error("Storage stats yüklenemedi:", err);
+    }
+  }
+
+  // Otomatik yedekleme+temizlik
+  async function handleAutoCleanup() {
+    if (!confirm('Depolama alanı 900 MB üstündeyse otomatik yedekleme ve temizlik başlatılacak. Devam etmek istiyor musunuz?')) return;
+    setIsAutoCleanup(true);
+    setSuccessMessage("");
+    setError("");
+    try {
+      const response = await fetch('/api/cleanup/auto', { method: 'POST' });
+      const result = await response.json();
+      if (result.success) {
+        setSuccessMessage(result.message);
+        setTimeout(() => setSuccessMessage(""), 10000);
+        fetchPhotos();
+        loadStorageStats();
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError('Otomatik yedekleme+temizlik sırasında bir hata oluştu');
+    } finally {
+      setIsAutoCleanup(false);
+    }
+  }
+
+  // Seçili fotoğrafları Google Drive'a yedekle
+  async function handleSelectedGoogleDriveBackup() {
+    if (selectedPhotos.size === 0) return;
+    if (!confirm(`${selectedPhotos.size} seçili fotoğrafı Google Drive'a yedeklemek istiyor musunuz?`)) return;
+    setIsSelectedBackup(true);
+    setSuccessMessage("");
+    setError("");
+    try {
+      const response = await fetch('/api/backup/google-drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileNames: Array.from(selectedPhotos) })
+      });
+      const result = await response.json();
+      if (result.success) {
+        setSuccessMessage(result.message);
+        setTimeout(() => setSuccessMessage(""), 10000);
+        loadStorageStats();
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError('Seçili fotoğraflar yedeklenirken bir hata oluştu');
+    } finally {
+      setIsSelectedBackup(false);
+    }
+  }
+
   if (!isLoggedIn) {
-    return (
+  return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900/20 dark:to-indigo-900/20 flex items-center justify-center p-4">
         <div className="absolute top-4 left-4">
           <Link href="/" className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
@@ -623,13 +791,17 @@ export default function AdminPage() {
           <div className="card p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Depolama Kullanımı</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Supabase Depolama Kullanımı</p>
                 <p className="text-lg font-bold text-gray-900 dark:text-white">
-                  {storageStats ? `%${storageStats.percentUsed}` : '---'}
+                  {isStorageStatsLoading ? (
+                    <span className="animate-pulse text-gray-400">Hesaplanıyor...</span>
+                  ) : storageStats ? `%${storageStats.percentUsed}` : '---'}
                 </p>
-                {storageStats && (
+                {isStorageStatsLoading ? (
+                  <p className="text-xs text-gray-400 animate-pulse">Hesaplanıyor...</p>
+                ) : storageStats && (
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {formatBytes(storageStats.totalSize)} / 4.5 GB
+                    {formatBytes(storageStats.totalSize)} / {storageStats.storageLimitGB} GB &ndash; Supabase üzerinde kullanılan alan
                   </p>
                 )}
               </div>
@@ -661,6 +833,47 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Google Drive Yedekleme İstatistikleri */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Google Drive Yedekleme</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-white">
+                  {isGoogleDriveStatsLoading ? (
+                    <span className="animate-pulse text-gray-400">Hesaplanıyor...</span>
+                  ) : googleDriveStats?.isEnabled ? (
+                    `${googleDriveStats.totalFiles} dosya`
+                  ) : (
+                    'Yapılandırılmamış'
+                  )}
+                </p>
+                {googleDriveStats?.lastBackupDate && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Son yedekleme: {new Date(googleDriveStats.lastBackupDate).toLocaleString('tr-TR')}
+                  </p>
+                )}
+                {googleDriveStats?.errorMessage && (
+                  <p className="text-xs text-red-500 dark:text-red-400">
+                    Hata: {googleDriveStats.errorMessage}
+                  </p>
+                )}
+              </div>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                googleDriveStats?.isEnabled 
+                  ? 'bg-blue-100 dark:bg-blue-900/20' 
+                  : 'bg-gray-100 dark:bg-gray-800'
+              }`}>
+                <svg className={`w-6 h-6 ${
+                  googleDriveStats?.isEnabled 
+                    ? 'text-blue-600 dark:text-blue-400' 
+                    : 'text-gray-400'
+                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 12l2 2 4-4" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -761,7 +974,7 @@ export default function AdminPage() {
                       Yükleniyor...
                     </>
                   ) : (
-                    <>
+                <>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                       </svg>
@@ -771,14 +984,64 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              <button
+                  <button
                 onClick={selectAllPhotos}
                 className="btn-secondary text-sm"
               >
                 {selectedPhotos.size === filteredPhotos.length ? 'Hiçbirini Seçme' : 'Tümünü Seç'}
               </button>
 
-              {/* Alan Temizleme */}
+              {/* Google Drive Yedekleme */}
+              <button
+                onClick={handleGoogleDriveBackup}
+                disabled={isGoogleDriveBackingUp || photos.length === 0}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                {isGoogleDriveBackingUp ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Google Drive'a Yedekleniyor...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 12l2 2 4-4" />
+                    </svg>
+                    Google Drive'a Yedekle
+                  </>
+                )}
+                  </button>
+
+              {/* Smart Cleanup - Yedekle ve Sil */}
+              {storageStats && storageStats.isNearLimit && (
+                  <button
+                  onClick={() => handleSmartCleanup(20)}
+                  disabled={isSmartCleaningUp}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                  {isSmartCleaningUp ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                      Akıllı Temizlik...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5-2a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2h7a2 2 0 002-2v-4" />
+                      </svg>
+                      Akıllı Temizlik (Yedekle + Sil)
+                    </>
+                  )}
+                  </button>
+              )}
+
+              {/* Alan Temizleme (Sadece Sil) */}
               {storageStats && storageStats.isNearLimit && (
                 <button
                   onClick={handleBackup}
@@ -798,9 +1061,9 @@ export default function AdminPage() {
                       <svg className="w-4 h-4 mr-2 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
-                      Eski Fotoğrafları Sil
-                    </>
-                  )}
+                      Sadece Sil (Yedeklemeden)
+                </>
+              )}
                 </button>
               )}
 
@@ -821,10 +1084,10 @@ export default function AdminPage() {
                   <>
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
+                    </svg>
                       {selectedPhotos.size > 0 ? `Seçilenleri İndir (${selectedPhotos.size})` : 'Tümünü İndir'}
-                    </>
-                  )}
+                  </>
+                )}
               </button>
 
               {selectedPhotos.size > 0 && (
@@ -838,6 +1101,31 @@ export default function AdminPage() {
                   Seçilenleri Sil ({selectedPhotos.size})
                 </button>
               )}
+
+              {selectedPhotos.size > 0 && (
+                <button
+                  onClick={handleSelectedGoogleDriveBackup}
+                  disabled={isSelectedBackup}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSelectedBackup ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Seçilenler Yedekleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 12l2 2 4-4" />
+                      </svg>
+                      Seçilenleri Yedekle ({selectedPhotos.size})
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
@@ -847,10 +1135,33 @@ export default function AdminPage() {
               <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
             </div>
           )}
-          
+
           {successMessage && (
             <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
               <p className="text-green-600 dark:text-green-400 text-sm">{successMessage}</p>
+            </div>
+          )}
+
+          {/* Backup Progress Bar */}
+          {backupProgress && (
+            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  Google Drive'a Yedekleniyor...
+                </span>
+                <span className="text-sm text-blue-700 dark:text-blue-300">
+                  {backupProgress.current} / {backupProgress.total}
+                </span>
+              </div>
+              <div className="w-full bg-blue-200 dark:bg-blue-700 rounded-full h-2 mb-2">
+                <div 
+                  className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${(backupProgress.current / backupProgress.total) * 100}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300 truncate">
+                Şu an yükleniyor: {backupProgress.fileName}
+              </p>
             </div>
           )}
         </div>
@@ -880,8 +1191,8 @@ export default function AdminPage() {
               <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
+              </svg>
+            </div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                 {searchTerm ? 'Arama sonucu bulunamadı' : 'Henüz fotoğraf yok'}
               </h3>
@@ -971,21 +1282,21 @@ export default function AdminPage() {
                     </div>
                     
                     {photoUrl ? (
-                      <img
-                        src={photoUrl}
-                        alt="Düğün Fotoğrafı"
+                    <img
+                      src={photoUrl}
+                      alt="Düğün Fotoğrafı"
                         className="object-cover w-full h-full cursor-pointer group-hover:scale-105 transition-transform duration-300"
                         onClick={() => handlePhotoClick(photoUrl, index)}
-                        onError={(e) => {
-                          console.error("Fotoğraf yüklenemedi:", photo.name);
+                      onError={(e) => {
+                        console.error("Fotoğraf yüklenemedi:", photo.name);
                           // HEIC dosyaları için özel fallback
                           if (isHeicFile(photo.name)) {
                             e.currentTarget.src = getHeicPlaceholder();
                           } else {
-                          e.currentTarget.src = '/fallback/photo-placeholder.jpg';
+                        e.currentTarget.src = '/fallback/photo-placeholder.jpg';
                           }
-                        }}
-                      />
+                      }}
+                    />
                     ) : (
                       <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                         <span className="text-gray-500 dark:text-gray-400 text-sm">Yüklenemedi</span>
@@ -1054,7 +1365,7 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-            
+
             <img 
               src={selectedPhoto} 
               alt="Büyük Fotoğraf" 
@@ -1156,3 +1467,11 @@ export default function AdminPage() {
     </div>
   );
 } 
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
