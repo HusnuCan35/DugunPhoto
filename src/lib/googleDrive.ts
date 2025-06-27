@@ -50,6 +50,8 @@ export const createFolderIfNotExists = async (folderName: string, parentFolderId
   const existingFolders = await drive.files.list({
     q,
     fields: 'files(id, name, parents)',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   if (existingFolders.data.files && existingFolders.data.files.length > 0) {
@@ -75,6 +77,7 @@ export const createFolderIfNotExists = async (folderName: string, parentFolderId
   const folder = await drive.files.create({
     requestBody: folderMetadata,
     fields: 'id',
+    supportsAllDrives: true,
   });
 
   console.log(`[GoogleDrive] '${folderName}' klasörü oluşturuldu!`);
@@ -110,6 +113,7 @@ export const uploadFileToGoogleDrive = async (
       requestBody: fileMetadata,
       media,
       fields: 'id, name, webViewLink',
+      supportsAllDrives: true,
     });
     console.log(`[GoogleDrive] '${fileName}' dosyası yüklendi!`);
     console.log(`[GoogleDrive] Yüklenen dosya ID: ${response.data.id}, webViewLink: ${response.data.webViewLink}`);
@@ -157,6 +161,8 @@ export const listFilesInFolderRecursive = async (folderId: string): Promise<any[
     q: `parents in '${folderId}' and trashed=false`,
     fields: 'files(id, name, size, createdTime, webViewLink, mimeType)',
     orderBy: 'createdTime desc',
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   const files = response.data.files || [];
@@ -181,6 +187,7 @@ export const deleteFileFromGoogleDrive = async (fileId: string) => {
   
   await drive.files.delete({
     fileId,
+    supportsAllDrives: true,
   });
   console.log(`[GoogleDrive] '${fileId}' dosyası silindi!`);
 };
